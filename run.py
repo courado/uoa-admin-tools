@@ -60,6 +60,7 @@ def get_topic(topic_id):
 def add_topic():
     topic = mongo.Topic()
     topic.update(mongo.Topic.from_json(str(request.data)))
+    topic.weight = float(topic.weight)
     topic.save()
     return Response(json.dumps(topic,cls=ComplexEncoder),mimetype='application/json')
 
@@ -109,4 +110,4 @@ def add_question():
 
 
 if __name__ == '__main__':
-	app.run(debug=True)
+	app.run(debug=True,host='0.0.0.0')
