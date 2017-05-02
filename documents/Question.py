@@ -10,10 +10,10 @@ class Question(Document):
     structure = {
         'question' : unicode,
         'answer' : unicode,
-        'date' : CustomDate,
+        'date' : CustomDate(),
         'isActive' : bool,
         'weight' : float,
-        'hitCount' : long,
+        'hitCount' : int,
         'topics' : [ObjectId]
     }
     required_fields = ['question', 'answer','isActive','weight','hitCount','topics']

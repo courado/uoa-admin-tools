@@ -13,7 +13,7 @@ from pprint import pprint
 
 from documents import Topic, Question
 
-
+import time
 
 class ComplexEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -31,6 +31,22 @@ app.config['MONGO_URI'] = 'mongodb://localhost:27017/faqdb'
 mongo = MongoKit(app)
 mongo.register([Topic,Question])
 
+#===========
+#  TOPICS 
+#===========
+
+def delete_topic_questions(topic):
+    # pprint(topic)
+    questions = mongo.Question.find({"topics" : topic._id})
+    
+    for question in questions:
+        question.topics.remove(topic._id)
+        if len(question.topics)==0 :
+            question.delete()
+        else:
+            question.save()
+
+
 @app.route('/topic', methods=['GET'])
 def get_all_topics():
     topic = mongo.Topic
@@ -38,9 +54,19 @@ def get_all_topics():
     # return Response(dumps(output),mimetype='application/json')
     return Response(json.dumps(output,cls=ComplexEncoder),mimetype='application/json')
   
+@app.route('/topic/delete', methods=['POST'])
+def delete_selected_topics():
+    ids = [ObjectId(id) for id in request.json]
+    topics = mongo.Topic.find({"_id" : {"$in" : ids}})
+    deleted = []
+    for topic in topics:
+        delete_topic_questions(topic)
+        deleted.append(topic._id)
+        topic.delete()
+    return Response(json.dumps({"deleted" : deleted},cls=ComplexEncoder),mimetype='application/json')
+
 @app.route('/topic', methods=['DELETE'])
 def delete_all_topics():
-    topic = mongo.Topic
     mongo.Topic.collection.remove()
     return Response(dumps({"status" : "OK"}),mimetype='application/json')
 
@@ -48,6 +74,8 @@ def delete_all_topics():
 def delete_topic(topic_id):
     topic = mongo.Topic
     topic = mongo.Topic.find_one({'_id': ObjectId(topic_id) })
+    delete_topic_questions(topic)
+
     topic.delete()
     return Response(dumps({"status" : "OK"}),mimetype='application/json')
 
@@ -56,20 +84,31 @@ def get_topic(topic_id):
     topic = mongo.Topic.find_one({'_id': ObjectId(topic_id) })
     return Response(json.dumps(topic,cls=ComplexEncoder),mimetype='application/json')
 
-@app.route('/topic', methods=['POST',])
+@app.route('/topic', methods=['POST'])
 def add_topic():
     topic = mongo.Topic()
     topic.update(mongo.Topic.from_json(str(request.data)))
     topic.weight = float(topic.weight)
+    if "_id" in request.json:
+        topic["_id"] = ObjectId(request.json["_id"])
     topic.save()
     return Response(json.dumps(topic,cls=ComplexEncoder),mimetype='application/json')
+
+#===========
+# QUESTIONS 
+#===========
+
+def resolve_topics(question) :
+    for i,item in enumerate(question.topics):
+        question.topics[i] = mongo.Topic.find_one({"_id" : item})
+    return question
 
 @app.route('/question', methods=['GET'])
 def get_all_questions():
     question = mongo.Question
-    output = [t for t in question.find()]
-    # return Response(dumps(output),mimetype='application/json')
-    return Response(json.dumps(output,cls=ComplexEncoder),mimetype='application/json')
+    questions = [t for t in question.find()]
+    [resolve_topics(question) for question in questions]
+    return Response(json.dumps(questions,cls=ComplexEncoder),mimetype='application/json')
   
 @app.route('/question', methods=['DELETE'])
 def delete_all_questions():
@@ -87,27 +126,19 @@ def delete_question(question_id):
 @app.route('/question/<string:question_id>', methods=['GET'])
 def get_question(question_id):
     question = mongo.Question.find_one({'_id': ObjectId(question_id) })
+    question = resolve_topics(question)
     return Response(json.dumps(question,cls=ComplexEncoder),mimetype='application/json')
 
-@app.route('/question', methods=['POST',])
+@app.route('/question', methods=['POST'])
 def add_question():
     question = mongo.Question()
-    request.json['hello'] = 'hello'
-    pprint(request.data)
-    pprint(request.json)
-    for topic in request.json['topics']:
-        topic = ObjectId(topic)
-    print("----------------------")
-    pprint(request.data)
-    question.update(mongo.Question.from_json(str(request.data)))
-    for topic in question['topics']:
-        pprint(topic)
-        topic = ObjectId(topic)
-        pprint(topic)
+    topics_ids = []
+    for i,item in enumerate(request.json['topics']):
+        request.json['topics'][i] = ObjectId(item)
+    question.update(request.json)
     question.save()
+    resolve_topics(question)
     return Response(json.dumps(question,cls=ComplexEncoder),mimetype='application/json')
-
-
 
 if __name__ == '__main__':
 	app.run(debug=True,host='0.0.0.0')
