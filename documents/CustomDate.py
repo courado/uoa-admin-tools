@@ -21,9 +21,6 @@ class CustomDate(CustomType):
            
            # return unicode(datetime.strftime(value,'%m-%d-%Y'))
            
-           
-           
-
     def validate(self, value, path):
         """OPTIONAL : useful to add a validation layer"""
         if value is not None:

@@ -1,7 +1,7 @@
 ﻿# from flask_pymongo import PyMongo
 
-from flask import Flask, jsonify, request, Response
-
+from flask import Flask, jsonify, request, Response, abort
+import os
 from flask_mongokit import MongoKit, Document
 import json
 from bson import ObjectId, json_util
@@ -24,10 +24,16 @@ class ComplexEncoder(json.JSONEncoder):
         # Let the base class default method raise the TypeError
         return json.JSONEncoder.default(self, obj)
 
+def str2bool(v):
+    return v.lower() in ("yes", "true", "t", "1")
+
 app = Flask(__name__)
 CORS(app)
-app.config['MONGO_DBNAME'] = 'faqdb'
-app.config['MONGO_URI'] = 'mongodb://localhost:27017/faqdb'
+app.config['MONGO_DBNAME'] = os.environ.get('MONGO_DBNAME','faqdb')
+app.config['MONGO_URI'] = os.environ.get('MONGO_URI','mongodb://localhost:27017/faqdb')
+app.config['SERVER_NAME'] = os.environ.get('SERVER_NAME','localhost:5000')
+app.config['DEBUG'] = str2bool(os.environ.get('DEBUG','False'))
+
 mongo = MongoKit(app)
 mongo.register([Topic,Question])
 
@@ -46,6 +52,11 @@ def delete_topic_questions(topic):
         else:
             question.save()
 
+
+
+@app.errorhandler(Exception)
+def all_exception_handler(error):
+   return jsonify({"error" : str(error)})
 
 @app.route('/topic', methods=['GET'])
 def get_all_topics():
@@ -94,6 +105,15 @@ def add_topic():
     topic.save()
     return Response(json.dumps(topic,cls=ComplexEncoder),mimetype='application/json')
 
+@app.route('/topic/toggle', methods=['POST'])
+def status_topic():
+    order = request.args.get('order')
+    if order not in (u'hits',u'weight'):
+        raise Exception('Not hits or weight')
+    topics_ids = [ObjectId(t) for t in request.json]
+    question = mongo.Topic.collection.update({'_id': {"$in" : topics_ids }}, {'$set':{'questionOrder': order}}, multi = True)
+    return Response(json.dumps(topics_ids,cls=ComplexEncoder),mimetype='application/json')
+
 #===========
 # QUESTIONS 
 #===========
@@ -136,9 +156,31 @@ def add_question():
     for i,item in enumerate(request.json['topics']):
         request.json['topics'][i] = ObjectId(item)
     question.update(request.json)
+    question.weight = float(question.weight)
+    if "_id" in request.json:
+        question["_id"] = ObjectId(request.json["_id"])
     question.save()
     resolve_topics(question)
     return Response(json.dumps(question,cls=ComplexEncoder),mimetype='application/json')
 
+@app.route('/question/delete', methods=['POST'])
+def delete_question_selected():
+    ids = [ObjectId(id) for id in request.json]
+    questions = mongo.Question.find({"_id" : {"$in" : ids}})
+    deleted = []
+    for question in questions:
+        deleted.append(question._id)
+        question.delete()
+    return Response(json.dumps(deleted,cls=ComplexEncoder),mimetype='application/json')
+
+@app.route('/question/toggle', methods=['POST'])
+def status_question():
+    if request.args.get('status') == None :
+        raise Exception('Provide a toggle status (true,false)')
+    status = str2bool(request.args.get('status'))
+    question_ids = [ObjectId(t) for t in request.json]
+    question = mongo.Question.collection.update({'_id': {"$in" : question_ids }}, {'$set':{'isActive': status}}, multi = True)
+    return Response(json.dumps(question_ids,cls=ComplexEncoder),mimetype='application/json')
+# 
 if __name__ == '__main__':
-	app.run(debug=True,host='0.0.0.0')
+	app.run()
