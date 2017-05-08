@@ -1,0 +1,45 @@
+version: '3'
+
+services:
+  back_end:
+    container_name: back_end
+    image: 83.212.101.85:5000/uoa-admin-tools
+    environment: 
+      #- MONGODB_USERNAME
+      #- MONGODB_PASSWORD
+      #- MONGODB_PORT
+      - MONGODB_HOST=83.212.101.85
+      #- MONGODB_DATABASE
+      - DEBUG=False
+      - API_ENDPOINT=83.212.101.85
+      - API_PORT=5555
+    ports:
+      - "5555:80"
+    networks :
+      - mongonet
+    restart: always
+#    deploy:
+#      placement:
+#        constraints : [node.role == worker]  
+
+  mongodb:
+    container_name: mongodb
+    image: mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodata:/var/lib/mongodb
+    restart: always
+    networks:
+      - mongonet
+    deploy:
+      placement:
+        constraints : [node.role == worker]  
+
+volumes:
+  mongodata:
+    driver: local
+
+networks:
+  mongonet:
+    driver: overlay

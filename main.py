@@ -1,6 +1,5 @@
 ﻿# from flask_pymongo import PyMongo
-
-from flask import Flask, jsonify, request, Response, abort
+from flask import Flask, jsonify, request, Response, abort, send_file
 import os
 from flask_mongokit import MongoKit, Document
 import json
@@ -8,11 +7,8 @@ from bson import ObjectId, json_util
 from bson.json_util import dumps
 from datetime import datetime
 from flask_cors import CORS, cross_origin
-
 from pprint import pprint
-
 from documents import Topic, Question
-
 import time
 
 class ComplexEncoder(json.JSONEncoder):
@@ -26,17 +22,20 @@ class ComplexEncoder(json.JSONEncoder):
 
 def str2bool(v):
     return v.lower() in ("yes", "true", "t", "1")
-
+# 
 app = Flask(__name__)
 CORS(app)
-app.config['MONGO_DBNAME'] = os.environ.get('MONGO_DBNAME','faqdb')
-app.config['MONGO_URI'] = os.environ.get('MONGO_URI','mongodb://localhost:27017/faqdb')
-app.config['SERVER_NAME'] = os.environ.get('SERVER_NAME','localhost:5000')
-app.config['DEBUG'] = str2bool(os.environ.get('DEBUG','False'))
+app.config['MONGODB_HOST'] = os.environ.get('MONGODB_HOST','localhost')
+app.config['MONGODB_USERNAME'] = os.environ.get('MONGODB_USERNAME',None)
+app.config['MONGODB_PASSWORD'] = os.environ.get('MONGODB_PASSWORD',None)
+app.config['MONGODB_PORT'] = int(os.environ.get('MONGODB_PORT','27017'))
+app.config['MONGODB_DATABASE'] = os.environ.get('MONGODB_DATABASE','faq')
+# app.config['SERVER_NAME'] = os.environ.get('SERVER_NAME','localhost:5000')
+app_port = int(os.environ.get('APP_PORT','80'))
+app.config['DEBUG'] = str2bool(os.environ.get('DEBUG','True'))
 
 mongo = MongoKit(app)
 mongo.register([Topic,Question])
-
 #===========
 #  TOPICS 
 #===========
@@ -183,4 +182,4 @@ def status_question():
     return Response(json.dumps(question_ids,cls=ComplexEncoder),mimetype='application/json')
 # 
 if __name__ == '__main__':
-	app.run()
+	app.run(host='0.0.0.0',port=app_port)
