@@ -13,7 +13,7 @@ class Topic(Document):
         'weight' : float,
         'questionOrder' : IS(u"hits",u"weight")
     }
-    required_fields = ['name', 'description','weight','questionOrder']
+    required_fields = ['name','weight','questionOrder']
     default_values = {'date': datetime.utcnow}
     use_dot_notation = True
 

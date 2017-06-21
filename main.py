@@ -55,7 +55,7 @@ def delete_topic_questions(topic):
 
 @app.errorhandler(Exception)
 def all_exception_handler(error):
-   return jsonify({"error" : str(error)})
+   return Response(json.dumps({"error" : str(error)}),mimetype='application/json',status=500)
 
 @app.route('/topic', methods=['GET'])
 def get_all_topics():

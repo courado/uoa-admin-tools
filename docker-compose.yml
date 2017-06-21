@@ -14,7 +14,7 @@ services:
       - API_ENDPOINT=83.212.101.85
       - API_PORT=5555
     ports:
-      - "5555:80"
+      - "5555:80"sh /hom  
     networks :
       - mongonet
     restart: always
