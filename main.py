@@ -25,13 +25,13 @@ def str2bool(v):
 # 
 app = Flask(__name__)
 CORS(app)
-app.config['MONGODB_HOST'] = os.environ.get('MONGODB_HOST','localhost')
+app.config['MONGODB_HOST'] = os.environ.get('MONGODB_HOST','83.212.101.85')
 app.config['MONGODB_USERNAME'] = os.environ.get('MONGODB_USERNAME',None)
 app.config['MONGODB_PASSWORD'] = os.environ.get('MONGODB_PASSWORD',None)
 app.config['MONGODB_PORT'] = int(os.environ.get('MONGODB_PORT','27017'))
 app.config['MONGODB_DATABASE'] = os.environ.get('MONGODB_DATABASE','faq')
 # app.config['SERVER_NAME'] = os.environ.get('SERVER_NAME','localhost:5000')
-app_port = int(os.environ.get('APP_PORT','80'))
+app_port = int(os.environ.get('APP_PORT','5000'))
 app.config['DEBUG'] = str2bool(os.environ.get('DEBUG','True'))
 
 mongo = MongoKit(app)
@@ -104,6 +104,19 @@ def add_topic():
     topic.save()
     return Response(json.dumps(topic,cls=ComplexEncoder),mimetype='application/json')
 
+def resolve_questions(topic) :
+    question = mongo.Question;
+    orderby = "hitCount" if(topic.questionOrder == 'hits') else 'weight'
+    pprint(topic._id)
+    topic['questions'] = [t for t in question.find({'topics' : topic._id, 'isActive' : True },sort=[(orderby,-1)])]
+    return topic
+
+@app.route('/topic/active', methods=['GET'])
+def get_active_topics ():
+    topic = mongo.Topic
+    output = [resolve_questions(t) for t in topic.find()]
+    return Response(json.dumps(output,cls=ComplexEncoder),mimetype='application/json')
+
 @app.route('/topic/toggle', methods=['POST'])
 def status_topic():
     order = request.args.get('order')
@@ -134,6 +147,11 @@ def delete_all_questions():
     question = mongo.Question
     mongo.Question.collection.remove()
     return Response(dumps({"status" : "OK"}),mimetype='application/json')
+
+@app.route('/question/inc/<string:question_id>', methods=['PUT'])
+def inc_question(question_id):
+    question = mongo.Question.find_and_modify({'_id': ObjectId(question_id) },{'$inc' : {'hitCount' : 1}}, new= True)
+    return Response(json.dumps(question,cls=ComplexEncoder),mimetype='application/json')
 
 @app.route('/question/<string:question_id>', methods=['DELETE'])
 def delete_question(question_id):
