@@ -8,7 +8,7 @@ from bson.json_util import dumps
 from datetime import datetime
 from flask_cors import CORS, cross_origin
 from pprint import pprint
-from documents import Topic, Question
+from documents import Topic, Question, Page, PageHelpContent
 import time
 
 class ComplexEncoder(json.JSONEncoder):
@@ -24,18 +24,20 @@ def str2bool(v):
     return v.lower() in ("yes", "true", "t", "1")
 # 
 app = Flask(__name__)
-CORS(app)
-app.config['MONGODB_HOST'] = os.environ.get('MONGODB_HOST','83.212.101.85')
+
+app.config['MONGODB_HOST'] = os.environ.get('MONGODB_HOST','localhost')
 app.config['MONGODB_USERNAME'] = os.environ.get('MONGODB_USERNAME',None)
 app.config['MONGODB_PASSWORD'] = os.environ.get('MONGODB_PASSWORD',None)
 app.config['MONGODB_PORT'] = int(os.environ.get('MONGODB_PORT','27017'))
-app.config['MONGODB_DATABASE'] = os.environ.get('MONGODB_DATABASE','faq')
+app.config['MONGODB_DATABASE'] = os.environ.get('MONGODB_DATABASE','faqs')
 # app.config['SERVER_NAME'] = os.environ.get('SERVER_NAME','localhost:5000')
 app_port = int(os.environ.get('APP_PORT','5000'))
 app.config['DEBUG'] = str2bool(os.environ.get('DEBUG','True'))
-
+CORS(app)
 mongo = MongoKit(app)
-mongo.register([Topic,Question])
+
+mongo.register([Topic,Question,Page,PageHelpContent])
+
 #===========
 #  TOPICS 
 #===========
@@ -59,6 +61,7 @@ def all_exception_handler(error):
 
 @app.route('/topic', methods=['GET'])
 def get_all_topics():
+
     topic = mongo.Topic
     output = [t for t in topic.find()]
     # return Response(dumps(output),mimetype='application/json')
@@ -199,5 +202,84 @@ def status_question():
     question = mongo.Question.collection.update({'_id': {"$in" : question_ids }}, {'$set':{'isActive': status}}, multi = True)
     return Response(json.dumps(question_ids,cls=ComplexEncoder),mimetype='application/json')
 # 
+
+#===========
+# PAGE
+#===========
+
+@app.route('/test', methods=['GET'])
+def getTest():
+    mongo.connect()
+    return str(mongo.connected)
+
+
+@app.route('/page', methods=['GET'])
+def get_all_pages():
+    page = mongo.Page
+    output = [t for t in page.find()]
+    return Response(json.dumps(output,cls=ComplexEncoder),mimetype='application/json')
+
+@app.route('/page', methods=['POST'])
+def add_page():
+    page = mongo.Page()
+    page.update(mongo.Page.from_json(str(request.data)))
+    if "_id" in request.json:
+        page["_id"] = ObjectId(request.json["_id"])
+    page.save()
+    return Response(json.dumps(page,cls=ComplexEncoder),mimetype='application/json')
+
+@app.route('/page/delete', methods=['POST'])
+def delete_pages_selected():
+    ids = [ObjectId(id) for id in request.json]
+    questions = mongo.Page.find({"_id" : {"$in" : ids}})
+    deleted = []
+    for question in questions:
+        deleted.append(question._id)
+        question.delete()
+    return Response(json.dumps(deleted,cls=ComplexEncoder),mimetype='application/json')
+
+#===================
+# PAGE HELP CONTENT
+#===================
+
+def resolve_pages(pageHelpContent):
+    pageHelpContent.page = mongo.Page.find_one({'_id': pageHelpContent["page"] })
+    return pageHelpContent
+
+@app.route('/pagehelpcontent', methods=['GET'])
+def get_all_pagehelpcontents():
+    page = mongo.PageHelpContent
+    output = [resolve_pages(t) for t in page.find()]
+    return Response(json.dumps(output,cls=ComplexEncoder),mimetype='application/json')
+
+@app.route('/pagehelpcontent', methods=['POST'])
+def add_pagehelpcontents():
+    page = mongo.PageHelpContent()
+    request.json["page"] = ObjectId(request.json["page"])
+    request.json["order"] = int(request.json["order"])
+    page.update(request.json)
+    if "_id" in request.json:
+        page["_id"] = ObjectId(request.json["_id"])
+    page.save()
+    return Response(json.dumps(page,cls=ComplexEncoder),mimetype='application/json')
+
+@app.route('/pagehelpcontent/delete', methods=['POST'])
+def delete_pagehelpcontents_selected():
+    ids = [ObjectId(id) for id in request.json]
+    questions = mongo.PageHelpContent.find({"_id" : {"$in" : ids}})
+    deleted = []
+    for question in questions:
+        deleted.append(question._id)
+        question.delete()
+    return Response(json.dumps(deleted,cls=ComplexEncoder),mimetype='application/json')
+
+@app.route('/pagehelpcontent', methods=['DELETE'])
+def delete_all_pagehelpcontents():
+    pagehelpcontents = mongo.PageHelpContent
+    pagehelpcontents.collection.remove()
+    return Response(dumps({"status" : "OK"}),mimetype='application/json')
+
+
 if __name__ == '__main__':
-	app.run(host='0.0.0.0',port=app_port)
+    app.run(host='0.0.0.0',port=app_port)
+
