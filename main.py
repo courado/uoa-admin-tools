@@ -25,7 +25,7 @@ def str2bool(v):
 # 
 app = Flask(__name__)
 
-app.config['MONGODB_HOST'] = os.environ.get('MONGODB_HOST','localhost')
+app.config['MONGODB_HOST'] = os.environ.get('MONGODB_HOST','194.177.192.227')
 app.config['MONGODB_USERNAME'] = os.environ.get('MONGODB_USERNAME',None)
 app.config['MONGODB_PASSWORD'] = os.environ.get('MONGODB_PASSWORD',None)
 app.config['MONGODB_PORT'] = int(os.environ.get('MONGODB_PORT','27017'))
@@ -252,6 +252,12 @@ def get_all_pagehelpcontents():
     output = [resolve_pages(t) for t in page.find()]
     return Response(json.dumps(output,cls=ComplexEncoder),mimetype='application/json')
 
+@app.route('/pagehelpcontent/<string:pagehelpcontent_id>', methods=['GET'])
+def get_pagehelpcontent(pagehelpcontent_id):
+    pagehelpcontent = mongo.PageHelpContent.find_one({'_id': ObjectId(pagehelpcontent_id) })
+    #question = resolve_topics(question)
+    return Response(json.dumps(pagehelpcontent,cls=ComplexEncoder),mimetype='application/json')
+
 @app.route('/pagehelpcontent', methods=['POST'])
 def add_pagehelpcontents():
     page = mongo.PageHelpContent()
@@ -279,6 +285,14 @@ def delete_all_pagehelpcontents():
     pagehelpcontents.collection.remove()
     return Response(dumps({"status" : "OK"}),mimetype='application/json')
 
+@app.route('/pagehelpcontent/toggle', methods=['POST'])
+def status_pagehelpcontent():
+    if request.args.get('status') == None :
+        raise Exception('Provide a toggle status (true,false)')
+    status = str2bool(request.args.get('status'))
+    pagehelpcontent_ids = [ObjectId(t) for t in request.json]
+    question = mongo.PageHelpContent.collection.update({'_id': {"$in" : pagehelpcontent_ids }}, {'$set':{'isActive': status}}, multi = True)
+    return Response(json.dumps(pagehelpcontent_ids,cls=ComplexEncoder),mimetype='application/json')
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0',port=app_port)
