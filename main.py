@@ -238,6 +238,18 @@ def delete_pages_selected():
         question.delete()
     return Response(json.dumps(deleted,cls=ComplexEncoder),mimetype='application/json')
 
+@app.route('/page/route', methods=['GET'])
+def get_page():
+    if request.args.get('q') == None :
+        raise Exception('Provide the route parameter <q>')
+    page_name = request.args.get('q')
+    page = mongo.Page.find_one({'route': page_name })
+    page['content'] = {'top' :[], 'left' :[], 'right' : [], 'bottom': []}
+    for content in mongo.PageHelpContent.find({'page' : page._id, 'isActive' : True},sort=[('order',-1)]):
+        page['content'][content.placement].append(content)
+    #question = resolve_topics(question)
+    return Response(json.dumps(page,cls=ComplexEncoder),mimetype='application/json')
+
 #===================
 # PAGE HELP CONTENT
 #===================
