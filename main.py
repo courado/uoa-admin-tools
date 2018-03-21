@@ -20,9 +20,12 @@ class ComplexEncoder(json.JSONEncoder):
         # Let the base class default method raise the TypeError
         return json.JSONEncoder.default(self, obj)
 
+class NotFound(Exception):
+    pass
+
 def str2bool(v):
     return v.lower() in ("yes", "true", "t", "1")
-# 
+#
 app = Flask(__name__)
 
 app.config['MONGODB_HOST'] = os.environ.get('MONGODB_HOST','194.177.192.227')
@@ -39,13 +42,13 @@ mongo = MongoKit(app)
 mongo.register([Topic,Question,Page,PageHelpContent])
 
 #===========
-#  TOPICS 
+#  TOPICS
 #===========
 
 def delete_topic_questions(topic):
     # pprint(topic)
     questions = mongo.Question.find({"topics" : topic._id})
-    
+
     for question in questions:
         question.topics.remove(topic._id)
         if len(question.topics)==0 :
@@ -59,6 +62,10 @@ def delete_topic_questions(topic):
 def all_exception_handler(error):
    return Response(json.dumps({"error" : str(error)}),mimetype='application/json',status=500)
 
+@app.errorhandler(NotFound)
+def all_exception_handler(error):
+   return Response(json.dumps({"error" : str(error)}),mimetype='application/json',status=404)
+
 @app.route('/topic', methods=['GET'])
 def get_all_topics():
 
@@ -66,7 +73,7 @@ def get_all_topics():
     output = [t for t in topic.find()]
     # return Response(dumps(output),mimetype='application/json')
     return Response(json.dumps(output,cls=ComplexEncoder),mimetype='application/json')
-  
+
 @app.route('/topic/delete', methods=['POST'])
 def delete_selected_topics():
     ids = [ObjectId(id) for id in request.json]
@@ -130,7 +137,7 @@ def status_topic():
     return Response(json.dumps(topics_ids,cls=ComplexEncoder),mimetype='application/json')
 
 #===========
-# QUESTIONS 
+# QUESTIONS
 #===========
 
 def resolve_topics(question) :
@@ -144,7 +151,7 @@ def get_all_questions():
     questions = [t for t in question.find()]
     [resolve_topics(question) for question in questions]
     return Response(json.dumps(questions,cls=ComplexEncoder),mimetype='application/json')
-  
+
 @app.route('/question', methods=['DELETE'])
 def delete_all_questions():
     question = mongo.Question
@@ -201,7 +208,7 @@ def status_question():
     question_ids = [ObjectId(t) for t in request.json]
     question = mongo.Question.collection.update({'_id': {"$in" : question_ids }}, {'$set':{'isActive': status}}, multi = True)
     return Response(json.dumps(question_ids,cls=ComplexEncoder),mimetype='application/json')
-# 
+#
 
 #===========
 # PAGE
@@ -244,8 +251,11 @@ def get_page():
         raise Exception('Provide the route parameter <q>')
     page_name = request.args.get('q')
     page = mongo.Page.find_one({'route': page_name })
+    if not page:
+        raise NotFound("Page with route '{}' not found".format(page_name))
     page['content'] = {'top' :[], 'left' :[], 'right' : [], 'bottom': []}
-    for content in mongo.PageHelpContent.find({'page' : page._id, 'isActive' : True},sort=[('order',-1)]):
+    contents = mongo.PageHelpContent.find({'page' : page._id, 'isActive' : True},sort=[('order',-1)])
+    for content in contents:
         page['content'][content.placement].append(content)
     #question = resolve_topics(question)
     return Response(json.dumps(page,cls=ComplexEncoder),mimetype='application/json')
@@ -308,4 +318,3 @@ def status_pagehelpcontent():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0',port=app_port)
-
