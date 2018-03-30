@@ -250,7 +250,7 @@ def get_page():
     if request.args.get('q') == None :
         raise Exception('Provide the route parameter <q>')
     page_name = request.args.get('q')
-    page = mongo.Page.find_one({'route': page_name })
+    page = mongo.Page.find_one({"$where" : '"{}".match(this.route)'.format(page_name)})
     if not page:
         raise NotFound("Page with route '{}' not found".format(page_name))
     page['content'] = {'top' :[], 'left' :[], 'right' : [], 'bottom': []}
